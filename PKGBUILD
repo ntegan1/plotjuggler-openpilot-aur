@@ -32,10 +32,10 @@ folder=plotjuggler
 #source=("${folder}::git+${url}#branch=comma-master")
 source=("${folder}::git+${url}#commit=${pkgcommit}")
 md5sums=('SKIP')
-pjdir="${srcdir}/${folder}"
-pjbuilddir="${srcdir}/${folder}build"
 
 prepare() {
+  pjdir="${srcdir}/${folder}"
+  pjbuilddir="${srcdir}/${folder}build"
   printf '%s\n' '  -> Initializing submodules...'
   git -C "${pjdir}" submodule set-url 3rdparty/opendbc 'https://github.com/commaai/opendbc'
   git -C "${pjdir}" submodule set-url 3rdparty/cereal 'https://github.com/commaai/cereal'
@@ -48,20 +48,28 @@ prepare() {
   pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v Cython "${pjdir}/3rdparty/opendbc/requirements.txt")
 
   printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
-  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}"  -DCMAKE_BUILD_TYPE=Release
+  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr"  -DCMAKE_BUILD_TYPE=Release
   deactivate
 }
 build() {
+  pjdir="${srcdir}/${folder}"
+  pjbuilddir="${srcdir}/${folder}build"
   # cd $srcdir/$pkgname-$pkgver; configure --prefix=/usr; make
   echo "${srcdir}"
   #cmake --build pjbuild --config Release --parallel --target install
-  cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
+  #mkdir -p "${pkgdir}"
+  #chmod 600 "${pkgdir}/.."
+  #chmod 600 "${pkgdir}"
+  cmake --build "${pjbuilddir}" --config Release --parallel 2
 }
 package() {
+  pjdir="${srcdir}/${folder}"
+  pjbuilddir="${srcdir}/${folder}build"
+  cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
   # todo: set BASEDIR for dataload rlog
-  mkdir -p "${pkgdir}/lib/openpilot"
-  cp -r "${pjdir}/3rdparty/cereal" "${pkgdir}/lib/openpilot"
-  cp -r "${pjdir}/3rdparty/opendbc" "${pkgdir}/lib/openpilot"
+  mkdir -p "${pkgdir}/usr/lib/openpilot"
+  cp -r "${pjdir}/3rdparty/cereal" "${pkgdir}/usr/lib/openpilot"
+  cp -r "${pjdir}/3rdparty/opendbc" "${pkgdir}/usr/lib/openpilot"
   echo $pkgdir
   # cd srcdir; make DESTDIR=$pkgdir/ install
 }
