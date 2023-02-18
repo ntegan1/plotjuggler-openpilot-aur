@@ -39,21 +39,19 @@ md5sums=('SKIP')
 #source ./env/bin/activate
 #pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(
 
+prepare() {
+  # from ffmpeg-git PKGBUILD
+  #printf '%s\n' '  -> Running ffmpeg configure script...'
+  printf '%s\n' '  -> Initializing submodules...'
+  git -C "${srcdir}/${folder}" submodule set-url 3rdparty/opendbc 'https://github.com/commaai/opendbc'
+  git -C "${srcdir}/${folder}" submodule set-url 3rdparty/cereal 'https://github.com/commaai/cereal'
+  git -C "${srcdir}/${folder}" submodule update --init
+}
 build() {
-  set -x
-  pwd
-  ls
   # cd $srcdir/$pkgname-$pkgver; configure --prefix=/usr; make
   echo "${srcdir}"
-  ls "${srcdir}"
-  set +x
 }
 package() {
-  set -x
-  pwd
-  ls
   echo $pkgdir
-  ls $pkgdir
   # cd srcdir; make DESTDIR=$pkgdir/ install
-  set +x
 }
