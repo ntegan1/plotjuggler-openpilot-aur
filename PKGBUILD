@@ -30,13 +30,14 @@ prepare() {
   git -C "${pjdir}" submodule update --init
 
   printf '%s\n' '  -> Initializing openpilot python requirements venv...'
-  python3 -m venv "${pjdir}/venv"
+  #https://stackoverflow.com/questions/40071987/how-to-use-the-numpy-installed-by-pacman-in-virtualenv
+  python3 -m venv  --system-site-packages "${pjdir}/venv"
   (
     source "${pjdir}/venv/bin/activate"
     pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v 'Cython\|numpy' "${pjdir}/3rdparty/opendbc/requirements.txt")
 
     printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
-    cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr" -DCMAKE_BUILD_TYPE=Release
+    cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr" -DCMAKE_BUILD_TYPE=Release --parallel 2
     deactivate
   )
 }
