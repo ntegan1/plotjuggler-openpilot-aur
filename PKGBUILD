@@ -14,9 +14,9 @@ url="https://github.com/commaai/plotjuggler"
 license=('unknown')
 groups=()
 pjdepends=('binutils' 'qt5-base' 'qt5-multimedia' 'qt5-svg' 'qt5-websockets' 'arrow' 'qtav')
-opdepends=('opencl-headers' 'zmq' 'capnproto')
+opdepends=('opencl-headers' 'zeromq' 'capnproto')
 depends=(${pjdepends[@]} ${opdepends[@]})
-makedepends=('cmake' 'clang' 'scons')
+makedepends=('cmake' 'clang' 'scons' 'python-numpy')
 optdepends=()
 folder=plotjuggler
 source=("${folder}::git+${url}#commit=${pkgcommit}")
@@ -30,11 +30,11 @@ prepare() {
   git -C "${pjdir}" submodule update --init
 
   printf '%s\n' '  -> Initializing openpilot python requirements venv...'
-  python3 -m venv "${pjdir}/venv"
+  #https://stackoverflow.com/questions/40071987/how-to-use-the-numpy-installed-by-pacman-in-virtualenv
+  python3 -m venv  --system-site-packages "${pjdir}/venv"
   (
     source "${pjdir}/venv/bin/activate"
-    # from comma pj Dockerfile # maybe install archlinux numpy instead
-    pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v Cython "${pjdir}/3rdparty/opendbc/requirements.txt")
+    pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v 'Cython\|numpy' "${pjdir}/3rdparty/opendbc/requirements.txt")
 
     printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
     cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr" -DCMAKE_BUILD_TYPE=Release
@@ -55,7 +55,7 @@ package() {
   # https://stackoverflow.com/questions/52993166/cmake-target-install-without-build-command-line
   #cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
   #cmake --install "${pjbuilddir}"
-  cmake --build "${pjbuilddir}" --config Release --target install/fast;
+  cmake --build "${pjbuilddir}" --config Release --target install/fast --parallel 2;
 
   printf '%s\n' '  -> Generating binary wrapper for op cereal dir...'
   mv "${pkgdir}/usr/bin/plotjuggler" "${pkgdir}/usr/bin/pplotjuggler.bin";
