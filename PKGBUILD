@@ -1,7 +1,7 @@
 # Maintainer: Nick Egan <ntegan1+2@gmail.com>
 
 pkgname=plotjuggler-openpilot-git
-#ntegan@ideapad ~/comma/pj (git)-[comma-master] % git rev-parse --short HEAD
+#git rev-parse --short HEAD
 pkgcommit=59bbc62f
 
 pkgver=3.6.0.${pkgcommit}
@@ -14,22 +14,12 @@ url="https://github.com/commaai/plotjuggler"
 license=('unknown')
 #groups=('base-devel')
 groups=()
-#sudo apt -y install qtbase5-dev libqt5svg5-dev libqt5websockets5-dev \
-#     libqt5opengl5-dev libqt5x11extras5-dev libprotoc-dev libzmq-dev
 pjdepends=('binutils' 'qt5-base' 'qt5-multimedia' 'qt5-svg' 'qt5-websockets' 'arrow' 'qtav')
-opdepends=('opencl-headers')
+opdepends=('opencl-headers' 'zmq' 'capnproto')
 depends=(${pjdepends[@]} ${opdepends[@]})
-#cmake -DCMAKE_BUILD_TYPE=Release ..
-#cmake -S src/PlotJuggler -B build/PlotJuggler -DCMAKE_INSTALL_PREFIX=install
-#cmake --build build/PlotJuggler --config RelWithDebInfo --parallel --target install
-
 makedepends=('cmake' 'clang' 'scons')
-#optdepends=('ed: for "patch -e" functionality')
 optdepends=()
-# https://wiki.archlinux.org/title/VCS_package_guidelines#VCS_sources
-#source=("ftp://ftp.gnu.org/gnu/$pkgname/$pkgname-$pkgver.tar.xz"{,.sig})
 folder=plotjuggler
-#source=("${folder}::git+${url}#branch=comma-master")
 source=("${folder}::git+${url}#commit=${pkgcommit}")
 md5sums=('SKIP')
 
@@ -48,28 +38,29 @@ prepare() {
   pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v Cython "${pjdir}/3rdparty/opendbc/requirements.txt")
 
   printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
-  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr"  -DCMAKE_BUILD_TYPE=Release
+  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr"  -DCMAKE_BUILD_TYPE=Release;
   deactivate
 }
 build() {
   pjdir="${srcdir}/${folder}"
   pjbuilddir="${srcdir}/${folder}build"
-  # cd $srcdir/$pkgname-$pkgver; configure --prefix=/usr; make
-  echo "${srcdir}"
-  #cmake --build pjbuild --config Release --parallel --target install
-  #mkdir -p "${pkgdir}"
-  #chmod 600 "${pkgdir}/.."
-  #chmod 600 "${pkgdir}"
+  printf '%s\n' '  -> Building...'
   cmake --build "${pjbuilddir}" --config Release --parallel 2
 }
 package() {
   pjdir="${srcdir}/${folder}"
   pjbuilddir="${srcdir}/${folder}build"
-  cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
-  echo '#!/bin/bash' > "${pkgdir}"/usr/bin/pj2
-  echo 'export BASEDIR=/usr/lib/openpilot' >> "${pkgdir}"/usr/bin/pj2
-  echo 'plotjuggler $@' >> "${pkgdir}"/usr/bin/pj2
-  chmod +x "${pkgdir}"/usr/bin/pj2
+  printf '%s\n' '  -> Installing...'
+  # https://stackoverflow.com/questions/52993166/cmake-target-install-without-build-command-line
+  #cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
+  #cmake --install "${pjbuilddir}"
+  cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install/fast;
+
+  printf '%s\n' '  -> Generating binary wrapper for op cereal dir...'
+  echo '#!/bin/bash' > "${pkgdir}"/usr/bin/pj2;
+  echo 'export BASEDIR=/usr/lib/openpilot' >> "${pkgdir}"/usr/bin/pj2;
+  echo 'plotjuggler $@' >> "${pkgdir}"/usr/bin/pj2;
+  chmod +x "${pkgdir}"/usr/bin/pj2;
   # todo: set BASEDIR for dataload rlog
   mkdir -p "${pkgdir}/usr/lib/openpilot"
   cp -r "${pjdir}/3rdparty/cereal" "${pkgdir}/usr/lib/openpilot"
@@ -77,3 +68,4 @@ package() {
   echo $pkgdir
   # cd srcdir; make DESTDIR=$pkgdir/ install
 }
+
