@@ -32,10 +32,10 @@ folder=plotjuggler
 #source=("${folder}::git+${url}#branch=comma-master")
 source=("${folder}::git+${url}#commit=${pkgcommit}")
 md5sums=('SKIP')
+pjdir="${srcdir}/${folder}"
+pjbuilddir="${srcdir}/${folder}build"
 
 prepare() {
-  pjdir="${srcdir}/${folder}"
-  pjbuilddir="${srcdir}/${folder}build"
   printf '%s\n' '  -> Initializing submodules...'
   git -C "${pjdir}" submodule set-url 3rdparty/opendbc 'https://github.com/commaai/opendbc'
   git -C "${pjdir}" submodule set-url 3rdparty/cereal 'https://github.com/commaai/cereal'
@@ -44,21 +44,24 @@ prepare() {
   printf '%s\n' '  -> Initializing openpilot python requirements venv...'
   python3 -m venv "${pjdir}/venv"
   source "${pjdir}/venv/bin/activate"
-  # from comma pj Dockerfile
+  # from comma pj Dockerfile # maybe install archlinux numpy instead
   pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v Cython "${pjdir}/3rdparty/opendbc/requirements.txt")
 
   printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
-  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkdir}"  -DCMAKE_BUILD_TYPE=Release
+  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}"  -DCMAKE_BUILD_TYPE=Release
   deactivate
 }
 build() {
   # cd $srcdir/$pkgname-$pkgver; configure --prefix=/usr; make
   echo "${srcdir}"
-  false
   #cmake --build pjbuild --config Release --parallel --target install
-
+  cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
 }
 package() {
+  # todo: set BASEDIR for dataload rlog
+  mkdir -p "${pkgdir}/lib/openpilot"
+  cp -r "${pjdir}/3rdparty/cereal" "${pkgdir}/lib/openpilot"
+  cp -r "${pjdir}/3rdparty/opendbc" "${pkgdir}/lib/openpilot"
   echo $pkgdir
   # cd srcdir; make DESTDIR=$pkgdir/ install
 }
