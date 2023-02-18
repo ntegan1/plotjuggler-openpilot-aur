@@ -23,10 +23,7 @@ depends=(${pjdepends[@]} ${opdepends[@]})
 #cmake -S src/PlotJuggler -B build/PlotJuggler -DCMAKE_INSTALL_PREFIX=install
 #cmake --build build/PlotJuggler --config RelWithDebInfo --parallel --target install
 
-# cmake -S pj -B pjbuild -DCMAKE_INSTALL_PREFIX=pjinstall  -DCMAKE_BUILD_TYPE=Release
-#cmake --build pjbuild --config Release --parallel --target install
-
-makedepends=('cmake' 'clang')
+makedepends=('cmake' 'clang' 'scons')
 #optdepends=('ed: for "patch -e" functionality')
 optdepends=()
 # https://wiki.archlinux.org/title/VCS_package_guidelines#VCS_sources
@@ -35,21 +32,31 @@ folder=plotjuggler
 #source=("${folder}::git+${url}#branch=comma-master")
 source=("${folder}::git+${url}#commit=${pkgcommit}")
 md5sums=('SKIP')
-#python3 -m venv env
-#source ./env/bin/activate
-#pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(
 
 prepare() {
-  # from ffmpeg-git PKGBUILD
-  #printf '%s\n' '  -> Running ffmpeg configure script...'
+  pjdir="${srcdir}/${folder}"
+  pjbuilddir="${srcdir}/${folder}build"
   printf '%s\n' '  -> Initializing submodules...'
-  git -C "${srcdir}/${folder}" submodule set-url 3rdparty/opendbc 'https://github.com/commaai/opendbc'
-  git -C "${srcdir}/${folder}" submodule set-url 3rdparty/cereal 'https://github.com/commaai/cereal'
-  git -C "${srcdir}/${folder}" submodule update --init
+  git -C "${pjdir}" submodule set-url 3rdparty/opendbc 'https://github.com/commaai/opendbc'
+  git -C "${pjdir}" submodule set-url 3rdparty/cereal 'https://github.com/commaai/cereal'
+  git -C "${pjdir}" submodule update --init
+
+  printf '%s\n' '  -> Initializing openpilot python requirements venv...'
+  python3 -m venv "${pjdir}/venv"
+  source "${pjdir}/venv/bin/activate"
+  # from comma pj Dockerfile
+  pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v Cython "${pjdir}/3rdparty/opendbc/requirements.txt")
+
+  printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
+  cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkdir}"  -DCMAKE_BUILD_TYPE=Release
+  deactivate
 }
 build() {
   # cd $srcdir/$pkgname-$pkgver; configure --prefix=/usr; make
   echo "${srcdir}"
+  false
+  #cmake --build pjbuild --config Release --parallel --target install
+
 }
 package() {
   echo $pkgdir
