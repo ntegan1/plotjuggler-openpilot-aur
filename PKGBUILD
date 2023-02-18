@@ -37,7 +37,7 @@ prepare() {
     pip3 install pkgconfig jinja2 Cython && pip3 install --no-cache-dir -r <(grep -v 'Cython\|numpy' "${pjdir}/3rdparty/opendbc/requirements.txt")
 
     printf '%s\n' '  -> Build openpilot submodules and cmake generate...'
-    cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr" -DCMAKE_BUILD_TYPE=Release --parallel 2
+    cmake -S "${pjdir}" -B "${pjbuilddir}" -DCMAKE_INSTALL_PREFIX="${pkgdir}/usr" -DCMAKE_BUILD_TYPE=Release
     deactivate
   )
 }
@@ -55,7 +55,7 @@ package() {
   # https://stackoverflow.com/questions/52993166/cmake-target-install-without-build-command-line
   #cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
   #cmake --install "${pjbuilddir}"
-  cmake --build "${pjbuilddir}" --config Release --target install/fast;
+  cmake --build "${pjbuilddir}" --config Release --target install/fast --parallel 2;
 
   printf '%s\n' '  -> Generating binary wrapper for op cereal dir...'
   mv "${pkgdir}/usr/bin/plotjuggler" "${pkgdir}/usr/bin/pplotjuggler.bin";
