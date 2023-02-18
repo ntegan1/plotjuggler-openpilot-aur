@@ -66,6 +66,10 @@ package() {
   pjdir="${srcdir}/${folder}"
   pjbuilddir="${srcdir}/${folder}build"
   cmake --build "${pjbuilddir}" --config Release --parallel 2 --target install
+  echo '#!/bin/bash' > "${pkgdir}"/usr/bin/pj2
+  echo 'export BASEDIR=/usr/lib/openpilot' >> "${pkgdir}"/usr/bin/pj2
+  echo 'plotjuggler $@' >> "${pkgdir}"/usr/bin/pj2
+  chmod +x "${pkgdir}"/usr/bin/pj2
   # todo: set BASEDIR for dataload rlog
   mkdir -p "${pkgdir}/usr/lib/openpilot"
   cp -r "${pjdir}/3rdparty/cereal" "${pkgdir}/usr/lib/openpilot"
