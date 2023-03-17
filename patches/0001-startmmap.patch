@@ -1,0 +1,138 @@
+From 7f73ec66c9f1fe5281da087ee799e8b1aeb03ef6 Mon Sep 17 00:00:00 2001
+From: ntegan <ntegan1@gmail.com>
+Date: Fri, 17 Mar 2023 05:02:09 -0400
+Subject: [PATCH] startmmap
+
+---
+ .../DataLoadRlog/dataload_rlog.cpp            | 81 ++++++++++++++-----
+ 1 file changed, 60 insertions(+), 21 deletions(-)
+
+diff --git a/plotjuggler_plugins/DataLoadRlog/dataload_rlog.cpp b/plotjuggler_plugins/DataLoadRlog/dataload_rlog.cpp
+index 64567388..151ee420 100644
+--- a/plotjuggler_plugins/DataLoadRlog/dataload_rlog.cpp
++++ b/plotjuggler_plugins/DataLoadRlog/dataload_rlog.cpp
+@@ -1,5 +1,10 @@
+ #include <dataload_rlog.hpp>
+ 
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <kj/filesystem.h>
++
+ QByteArray read_bz2_file(const char* fn){
+   int bzError = BZ_OK;
+   FILE* f = fopen(fn, "rb");
+@@ -39,7 +44,6 @@ QByteArray read_raw_file(QString fn){
+ 
+ DataLoadRlog::DataLoadRlog()
+ {
+-  _extensions.push_back("bz2");
+   _extensions.push_back("rlog");
+ }
+ 
+@@ -61,39 +65,74 @@ bool DataLoadRlog::readDataFromFile(FileLoadInfo* fileload_info, PlotDataMapRef&
+ 
+   auto fn = fileload_info->filename;
+ 
+-  // Load file
+-  QByteArray raw;
+-  if (fn.endsWith(".bz2")){
+-    raw = read_bz2_file(fn.toStdString().c_str());
+-  } else {
+-    raw = read_raw_file(fn);
+-    if (raw.size() == 0) {
+-      qDebug() << "Raw file read failed, larger than 2GB?";
+-    }
+-  }
+ 
+-  kj::ArrayPtr<const capnp::word> amsg = kj::ArrayPtr((const capnp::word*)raw.data(), raw.size()/sizeof(capnp::word));
++  //auto f = kj::AutoCloseFd(open(fn.toStdString().c_str()));
++  //kj::newDiskFile(AutoCloseFd(fd));
++  //int fd = open(fn.toStdString().c_str());
++  //auto file = kj::newDiskReadableFile(fd);
++  //kj::ArrayPtr<const capnp::word> amsg = kj::ArrayPtr((const capnp::word*)raw.data(), raw.size()/sizeof(capnp::word));
++  // todo mmap and use flatarraymessagereader instead of this thing
++  //auto fd = kj::AutoCloseFd(open(fn.toStdString().c_str(), O_RDONLY));
++  int fd = open(fn.toStdString().c_str(), O_RDONLY);
++
++  off_t fdsz = lseek(fd, 0, SEEK_END);
++  lseek(fd, 0, SEEK_SET);
++  close(fd);
+ 
+-  int max_amsg_size = amsg.size();
++
++  //int max_amsg_size = amsg.size();
+ 
+   progress_dialog.setLabelText("Parsing log...");
+-  progress_dialog.setRange(0, max_amsg_size);
++  progress_dialog.setRange(0, fdsz);
+   progress_dialog.show();
++  //auto path = kj::Path(fn.toStdString().c_str());
++  //auto file = kj::newDiskFile(kj::AutoCloseFd(open(fn.toStdString().c_str(), O_RDONLY)));
++  //auto file = kj::Directory::openFile(path);
++
++  auto fs = kj::newDiskFilesystem();
++  //auto file = fs->getCurrent().openFile(kj::Path(fn.toStdString().c_str()));
++  //auto file = fs->newDiskFile(kj::Path(fn.toStdString().c_str()));
++  //auto file = kj::newDiskFile(kj::AutoCloseFd(open(fn.toStdString().c_str(), O_RDONLY)));
++  //auto file = kj::Filesystem::getRoot(fs)->openFile(kj::Path(fn.toStdString().c_str()));
++  //kj::Own<const kj::ReadableFile> file = fs->getCurrent().openFile(kj::Path(fn.toStdString().c_str()));
++
++  //kj::Array<const capnp::word> m = file.asFile().mmap(0, fdsz);
++  //   kj::Array<const capnp::word> m = fs->getCurrent().openFile(kj::Path(fn.toStdString().c_str())).mmap(0, fdsz);
++  //auto m = fs->getCurrent().openFile(kj::Path(fn.toStdString().c_str())).get()->mmap(0, fdsz);
++  auto m = fs->getRoot().openFile(fs->getCurrentPath().eval(fn.toStdString().c_str())).get()->mmap(0, fdsz);
+ 
+ 
+   RlogMessageParser parser("", plot_data);
+ 
+-  while(amsg.size() > 0)
++  int i = 0;
++  capnp::word *start = (capnp::word*)m.begin();
++  while(i < fdsz)
+   {
+     try
+     {
+-      capnp::FlatArrayMessageReader cmsg = capnp::FlatArrayMessageReader(amsg);
+-      capnp::FlatArrayMessageReader *tmsg = new capnp::FlatArrayMessageReader(kj::ArrayPtr(amsg.begin(), cmsg.getEnd()));
+-      amsg = kj::ArrayPtr(cmsg.getEnd(), amsg.end());
+-
+-      capnp::DynamicStruct::Reader event = tmsg->getRoot<capnp::DynamicStruct>(parser.getSchema());
++      // kj::ArrayPtr<const capnp::word> ptr = kj::ArrayPtr(
++      //   (const capnp::word*)(((off_t)m.begin()) + i ), 
++      //   (const capnp::word*)m.end());
++      kj::ArrayPtr<const capnp::word> ptr = kj::ArrayPtr(
++        (const capnp::word*)start, 
++        (const capnp::word*)m.end());
++
++      //  kj::ArrayPtr<const capnp::word> ptr = kj::ArrayPtr((const capnp::word*)(m.begin() + i ), fdsz / sizeof(capnp::word));
++      auto p = capnp::FlatArrayMessageReader(ptr);
++//            auto p = capnp::FlatArrayMessageReader(ptr.slice(i, fdsz));
++
++      //auto p = capnp::FlatArrayMessageReader(m.begin() + i, m.end());
++      // auto mr = capnp::StreamFdMessageReader(
++      //   fd,
++      //   capnp::ReaderOptions(),
++      //   nullptr
++      // );
++
++      capnp::DynamicStruct::Reader event = p.getRoot<capnp::DynamicStruct>(parser.getSchema());
+ 
+       parser.parseMessageCereal(event);
++      start = (capnp::word*) p.getEnd();
++      i = ((off_t)start) - ((off_t)m.begin());
+     }
+     catch (const kj::Exception& e)
+     {
+@@ -101,7 +140,7 @@ bool DataLoadRlog::readDataFromFile(FileLoadInfo* fileload_info, PlotDataMapRef&
+       break;
+     }
+ 
+-    progress_dialog.setValue(max_amsg_size - amsg.size());
++    progress_dialog.setValue(i);
+     QApplication::processEvents();
+     if(progress_dialog.wasCanceled())
+     {
+-- 
+2.40.0
+
